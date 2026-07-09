@@ -63,6 +63,7 @@ module Pact.Core.IR.Eval.Runtime.Utils
  , lookupFqNameOrFail
  , isCapInStack
  , isCapInStack'
+ , enforceNotAliasedCap
  ) where
 
 import Control.Lens hiding (from, to)
@@ -689,3 +690,20 @@ isCapInStack'
   -> EvalM e b i Bool
 isCapInStack' (CapToken fqn args) =
   isCapInStack (CapToken (fqnToQualName fqn) args)
+
+
+-- check that the caller is not trying to alias and "steal" an existing cap,
+-- by using a leading special character or an empty cap name
+enforceNotAliasedCap :: i -> CapToken FullyQualifiedName w -> EvalM e b i a -> EvalM e b i a
+enforceNotAliasedCap i (CapToken fqn _) action =
+  isExecutionFlagSet FlagDisablePact55 >>= \case
+    True -> action
+    False -> go
+  where
+      go = guardForModuleCall i (_fqModule fqn) $ do
+        case T.uncons (_fqName fqn) of
+          Nothing -> throwExecutionError i $ EvalError "Empty Capability Name"
+          -- A capname starting with '.' or ' ' MUST be discarded
+          Just ('.', _) -> throwExecutionError i $ EvalError "Invalid Capability Name"
+          Just (' ', _) -> throwExecutionError i $ EvalError "Invalid Capability Name"
+          _ -> action

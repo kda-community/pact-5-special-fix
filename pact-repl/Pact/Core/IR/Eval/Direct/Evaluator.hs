@@ -296,8 +296,8 @@ evaluate env expr = do
         enforceNotWithinDefcap info env "with-capability"
         rawCap <- enforceCapToken info =<< evaluate env cap
         let capModule = view (ctName . fqModule) rawCap
-        guardForModuleCall info capModule $ pure ()
-        evalCap info env rawCap PopCapInvoke NormalCapEval body
+        guardForModuleCall info capModule $ enforceNotAliasedCap info rawCap $
+          evalCap info env rawCap PopCapInvoke NormalCapEval body
       CCreateUserGuard term -> case term of
         App (Var (Name n (NTopLevel mn mh)) _) uargs _ -> do
           let fqn = FullyQualifiedName mn n mh
@@ -1043,7 +1043,7 @@ composeCap
   -> EvalM e b i (EvalValue e b i)
 composeCap info env origToken =
   isCapInStack' origToken >>= \case
-    False ->
+    False -> enforceNotAliasedCap info origToken $
       evalCap info env origToken PopCapComposed NormalCapEval (Constant (LBool True) info)
     True ->
       return (VBool True)

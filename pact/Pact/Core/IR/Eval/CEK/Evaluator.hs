@@ -844,6 +844,7 @@ composeCap
 composeCap info cont handler env origToken =
   isCapInStack' origToken >>= \case
     False ->
+      enforceNotAliasedCap info origToken $
       evalCap info cont handler env origToken PopCapComposed NormalCapEval (Constant (LBool True) info)
     True ->
       returnCEKValue cont handler (VBool True)
@@ -1094,7 +1095,7 @@ applyContToValue (CondC env info frame cont) handler !v = do
 applyContToValue (CapInvokeC env info cf cont) handler !v = case cf of
   WithCapC body -> case v of
     VCapToken ct@(CapToken fqn _) -> do
-      guardForModuleCall info (_fqModule fqn) $
+      guardForModuleCall info (_fqModule fqn) $ enforceNotAliasedCap info ct $
         evalCap info cont handler env ct PopCapInvoke NormalCapEval body
     -- Todo: this is actually more like "expected cap token"
     VPactValue v' -> throwExecutionError info $ ExpectedCapToken v'
