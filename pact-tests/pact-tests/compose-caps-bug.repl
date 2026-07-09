@@ -1,0 +1,63 @@
+
+(begin-tx)
+(module vulnerable GOV
+  (defcap GOV ()
+    true)
+
+  (defcap MY-CAP-IN-MODULE-VULNERABLE ()
+    true)
+
+  (defun test-cap:string ()
+    (require-capability (MY-CAP-IN-MODULE-VULNERABLE))
+    "Help me God")
+)
+(commit-tx)
+
+
+
+(begin-tx)
+(module attacker GOV
+  (defcap GOV ()
+    true)
+
+  (defcap ATTACKER-CAP ()
+    (compose-capability (vulnerable.MY-CAP-IN-MODULE-VULNERABLE)))
+
+  (defun test-cap:string ()
+    (with-capability (ATTACKER-CAP)
+      (vulnerable.test-cap)))
+)
+(commit-tx)
+
+(begin-tx)
+; Old behaviour
+(env-exec-config ['DisablePact54Fix])
+(expect "Cap is vulnerable" "Help me God" (attacker.test-cap))
+(commit-tx)
+
+(begin-tx)
+; New behaviour
+(env-exec-config [])
+(expect-failure "Cap is not vulnerable" (attacker.test-cap))
+(commit-tx)
+
+
+
+(begin-tx)
+; New behaviour => Test with Attacker Governance (just in case)
+
+(env-exec-config [])
+(module new-attacker GOV
+  (defcap GOV ()
+    true)
+
+  (defcap ATTACKER-CAP ()
+    (compose-capability (vulnerable.MY-CAP-IN-MODULE-VULNERABLE)))
+
+  (defun test-cap:string ()
+    (with-capability (ATTACKER-CAP)
+      (vulnerable.test-cap)))
+)
+
+(expect-failure "Cap is not vulnerable" (attacker.test-cap))
+(commit-tx)
